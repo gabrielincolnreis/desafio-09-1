@@ -22,7 +22,7 @@ export default class CreateOrderProducts1594079727087
           },
           {
             name: 'quantity',
-            type: 'varchar',
+            type: 'int',
           },
           {
             name: 'product_id',

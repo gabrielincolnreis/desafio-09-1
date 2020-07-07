@@ -30,42 +30,65 @@ class CreateOrderService {
     private customersRepository: ICustomersRepository,
   ) {}
 
-  public async execute({ customer_id, products }: IRequest): Promise<Order> {
+  public async execute({
+    customer_id,
+    products,
+  }: IRequest): Promise<Order | undefined> {
     const customer = await this.customersRepository.findById(customer_id);
 
     if (!customer) {
       throw new AppError('Customer does not exists');
     }
 
-    const productsArray = await Promise.all(
-      products.map(async product => {
-        const productId = product.id;
-        const productQuantity = product.quantity;
+    const allProducts = await this.productsRepository.findAllById(products);
 
-        const productExist = await this.productsRepository.findAllById([
-          { id: productId },
-        ]);
+    if (!allProducts) {
+      throw new AppError('Product does not Exists');
+    }
 
-        if (!productExist) {
-          throw new AppError('Product does not Exists');
-        }
+    const productsArray = products.map(product => {
+      const nameProduct = allProducts.find(
+        productOne => productOne.id === product.id,
+      );
 
-        if (productExist[0].quantity < productQuantity) {
-          throw new AppError('Quantity does not match');
-        }
+      if (!nameProduct) {
+        throw new AppError('Product does not Exists');
+      }
 
-        return {
-          product_id: productId,
-          price: productExist[0].price,
-          quantity: productQuantity,
-        };
-      }),
-    );
+      if (nameProduct.quantity < product.quantity) {
+        throw new AppError('Quantity does not match');
+      }
+
+      return {
+        product_id: product.id,
+        price: nameProduct.price,
+        quantity: product.quantity,
+      };
+    });
+
+    const newValues = products.map(product => {
+      const nameProduct = allProducts.find(
+        productOne => productOne.id === product.id,
+      );
+
+      if (!nameProduct) {
+        throw new AppError('Product does not Exists');
+      }
+
+      const newQuantity = nameProduct.quantity - product.quantity;
+
+      return {
+        id: nameProduct.id,
+        quantity: newQuantity,
+      };
+    });
 
     const order = await this.ordersRepository.create({
       customer,
       products: productsArray,
     });
+
+    await this.productsRepository.updateQuantity(newValues);
 
     return order;
   }
